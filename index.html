@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Murcia Gol Adventure</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="hud">
+      <div>
+        <h1>Murcia Gol Adventure</h1>
+        <p id="levelLabel">Nivel 1/6 · Barrio del Carmen</p>
+      </div>
+      <div class="stats">
+        <span id="coinsLabel">Naranjas: 0</span>
+        <span id="livesLabel">Energía: 3</span>
+      </div>
+    </div>
+
+    <canvas id="game" width="960" height="540" aria-label="Juego de plataformas ambientado en Murcia"></canvas>
+
+    <div class="touch-controls" aria-hidden="true">
+      <button id="btnLeft">◀</button>
+      <button id="btnRight">▶</button>
+      <button id="btnJump">⚽ Salto</button>
+    </div>
+
+    <div id="message" class="message hidden"></div>
+
+    <script src="game.js"></script>
+  </body>
+</html>
