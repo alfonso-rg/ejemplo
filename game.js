@@ -4,6 +4,9 @@ const levelLabel = document.getElementById("levelLabel");
 const coinsLabel = document.getElementById("coinsLabel");
 const livesLabel = document.getElementById("livesLabel");
 const messageBox = document.getElementById("message");
+const startScreen = document.getElementById("startScreen");
+const characterGrid = document.getElementById("characterGrid");
+const startGameBtn = document.getElementById("startGameBtn");
 
 const levelNames = [
   "Barrio del Carmen",
@@ -22,6 +25,17 @@ const worldConfig = {
   tile: 48,
 };
 
+const characters = [
+  { name: "Carmen", shirt: "#d72638", shorts: "#0d47a1" },
+  { name: "Ana", shirt: "#8e24aa", shorts: "#00897b" },
+  { name: "Martín", shirt: "#1e88e5", shorts: "#f4511e" },
+  { name: "Pablo", shirt: "#fbc02d", shorts: "#283593" },
+  { name: "Mateo", shirt: "#43a047", shorts: "#6d4c41" },
+  { name: "Inés", shirt: "#ec407a", shorts: "#3949ab" },
+  { name: "Jaime", shirt: "#fb8c00", shorts: "#5e35b1" },
+  { name: "Miguel", shirt: "#00acc1", shorts: "#6d4c41" },
+];
+
 let keys = { left: false, right: false, jump: false };
 let touchJumpQueued = false;
 
@@ -30,6 +44,7 @@ const gameState = {
   totalNaranjas: 0,
   lives: 3,
   finished: false,
+  selectedCharacter: null,
 };
 
 function makeLevel(index) {
@@ -102,13 +117,38 @@ function loadLevel(index) {
   currentLevel = makeLevel(index);
   resetPlayerPosition();
   cameraX = 0;
-  levelLabel.textContent = `Nivel ${index + 1}/6 · ${levelNames[index]}`;
+  const characterName = gameState.selectedCharacter ? ` · ${gameState.selectedCharacter.name}` : "";
+  levelLabel.textContent = `Nivel ${index + 1}/6 · ${levelNames[index]}${characterName}`;
 }
 
 function showMessage(text, duration = 2200) {
   messageBox.textContent = text;
   messageBox.classList.remove("hidden");
   setTimeout(() => messageBox.classList.add("hidden"), duration);
+}
+
+function buildCharacterSelection() {
+  for (const character of characters) {
+    const btn = document.createElement("button");
+    btn.className = "character-btn";
+    btn.type = "button";
+    btn.textContent = character.name;
+    btn.addEventListener("click", () => {
+      gameState.selectedCharacter = character;
+      for (const child of characterGrid.children) child.classList.remove("active");
+      btn.classList.add("active");
+      startGameBtn.disabled = false;
+      audio.ensureStart();
+    });
+    characterGrid.appendChild(btn);
+  }
+}
+
+function startGame() {
+  if (!gameState.selectedCharacter) return;
+  startScreen.classList.add("hidden");
+  levelLabel.textContent = `Nivel ${gameState.levelIndex + 1}/6 · ${levelNames[gameState.levelIndex]} · ${gameState.selectedCharacter.name}`;
+  showMessage(`¡${gameState.selectedCharacter.name} salta al césped!`, 2600);
 }
 
 function intersects(a, b) {
@@ -295,17 +335,18 @@ function drawNaranja(n) {
 function drawPlayer() {
   const blink = player.invulnFrames > 0 && Math.floor(player.invulnFrames / 8) % 2 === 0;
   if (blink) return;
+  const selected = gameState.selectedCharacter || { shirt: "#d72638", shorts: "#0d47a1" };
 
   const x = player.x - cameraX;
   ctx.fillStyle = "#f8d39e";
   ctx.fillRect(x + 10, player.y + 4, 14, 14);
 
-  ctx.fillStyle = "#d72638";
+  ctx.fillStyle = selected.shirt;
   ctx.fillRect(x + 6, player.y + 18, 22, 20);
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(x + 6, player.y + 28, 22, 4);
 
-  ctx.fillStyle = "#0d47a1";
+  ctx.fillStyle = selected.shorts;
   ctx.fillRect(x + 6, player.y + 38, 9, 12);
   ctx.fillRect(x + 19, player.y + 38, 9, 12);
 
@@ -369,7 +410,7 @@ function render() {
 }
 
 function tick() {
-  if (!gameState.finished) {
+  if (gameState.selectedCharacter && !gameState.finished) {
     applyControls();
     physics();
     updateLevelObjects();
@@ -491,6 +532,9 @@ const audio = (() => {
   return { ensureStart, jump, collect, warp, hit, victory };
 })();
 
-showMessage("Pulsa un botón para activar la música y comenzar el partido.", 5000);
+buildCharacterSelection();
+startGameBtn.addEventListener("click", startGame);
+
+showMessage("Primero elige personaje y luego toca “Comenzar partido”.", 5000);
 loadLevel(0);
 tick();
