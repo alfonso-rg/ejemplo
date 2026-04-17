@@ -3,6 +3,7 @@ const ctx = canvas.getContext("2d");
 const levelLabel = document.getElementById("levelLabel");
 const coinsLabel = document.getElementById("coinsLabel");
 const livesLabel = document.getElementById("livesLabel");
+const ballLabel = document.getElementById("ballLabel");
 const messageBox = document.getElementById("message");
 const startScreen = document.getElementById("startScreen");
 const characterGrid = document.getElementById("characterGrid");
@@ -36,8 +37,9 @@ const characters = [
   { name: "Miguel", shirt: "#00acc1", shorts: "#6d4c41" },
 ];
 
-let keys = { left: false, right: false, jump: false };
+let keys = { left: false, right: false, jump: false, shoot: false };
 let touchJumpQueued = false;
+let touchShootQueued = false;
 
 const gameState = {
   levelIndex: 0,
@@ -46,6 +48,7 @@ const gameState = {
   finished: false,
   selectedCharacter: null,
   started: false,
+  shotInProgress: false,
 };
 
 function makeLevel(index) {
@@ -66,8 +69,8 @@ function makeLevel(index) {
   ];
 
   const enemies = [
-    { x: 780, y: 418, w: 32, h: 32, vx: 1.1 + index * 0.15, minX: 710, maxX: 930, kind: "drone" },
-    { x: 1560, y: 418, w: 32, h: 32, vx: -1 - index * 0.12, minX: 1450, maxX: 1720, kind: "gaviota" },
+    { x: 780, y: 410, w: 34, h: 40, vx: 1.1 + index * 0.15, minX: 710, maxX: 930, kind: "defensa" },
+    { x: 1560, y: 410, w: 34, h: 40, vx: -1 - index * 0.12, minX: 1450, maxX: 1720, kind: "rival" },
   ];
 
   const naranjas = [
@@ -78,6 +81,10 @@ function makeLevel(index) {
     { x: 1820 + index * 120, y: 350, r: 11, taken: false },
   ];
 
+  const finishLine = width - 180;
+  const finalGoal = { x: finishLine, y: 345, w: 90, h: 105 };
+  const goalkeeper = { x: finishLine + 26, y: 388, w: 28, h: 62, dive: 0 };
+
   return {
     width,
     groundY,
@@ -85,7 +92,9 @@ function makeLevel(index) {
     goals,
     enemies,
     naranjas,
-    finishLine: width - 160,
+    finishLine,
+    finalGoal,
+    goalkeeper,
     skyHue: 198 - index * 8,
   };
 }
@@ -102,6 +111,8 @@ const player = {
   onGround: false,
   facing: 1,
   invulnFrames: 0,
+  hasBall: true,
+  ballLostFrames: 0,
 };
 
 let cameraX = 0;
@@ -112,12 +123,16 @@ function resetPlayerPosition() {
   player.vx = 0;
   player.vy = 0;
   player.onGround = false;
+  player.hasBall = true;
+  player.ballLostFrames = 0;
+  ballLabel.textContent = "Balón: ✅";
 }
 
 function loadLevel(index) {
   currentLevel = makeLevel(index);
   resetPlayerPosition();
   cameraX = 0;
+  gameState.shotInProgress = false;
   const characterName = gameState.selectedCharacter ? ` · ${gameState.selectedCharacter.name}` : "";
   levelLabel.textContent = `Nivel ${index + 1}/6 · ${levelNames[index]}${characterName}`;
 }
@@ -174,8 +189,42 @@ function applyControls() {
   }
   touchJumpQueued = false;
 
+  if (keys.shoot || touchShootQueued) {
+    attemptShot();
+    keys.shoot = false;
+  }
+  touchShootQueued = false;
+
   player.vx *= worldConfig.friction;
   player.vx = Math.max(-6.8, Math.min(6.8, player.vx));
+}
+
+function attemptShot() {
+  if (gameState.shotInProgress || gameState.finished) return;
+  const nearGoal = player.x + player.w >= currentLevel.finalGoal.x - 30;
+  if (!nearGoal) return;
+
+  if (!player.hasBall) {
+    showMessage("Sin balón no hay chut: recupéralo en unos segundos.");
+    return;
+  }
+
+  gameState.shotInProgress = true;
+  currentLevel.goalkeeper.dive = 34;
+  audio.goal();
+  showMessage("¡GOOOL! Portero batido.", 1300);
+
+  setTimeout(() => {
+    if (gameState.levelIndex < 5) {
+      gameState.levelIndex += 1;
+      showMessage(`Victoria en ${levelNames[gameState.levelIndex - 1]}! A por la siguiente portería...`);
+      loadLevel(gameState.levelIndex);
+    } else {
+      gameState.finished = true;
+      showMessage("¡Campeón de Murcia! Has superado los 6 niveles.", 7000);
+      audio.victory();
+    }
+  }, 1100);
 }
 
 function physics() {
@@ -210,7 +259,16 @@ function updateLevelObjects() {
     }
 
     if (intersects(player, e) && player.invulnFrames <= 0) {
-      damagePlayer("¡Te placó un rival! Pierdes una energía.");
+      player.invulnFrames = 90;
+      player.vx = -2.6 * Math.sign(e.vx || 1);
+      if (player.hasBall) {
+        player.hasBall = false;
+        player.ballLostFrames = 180;
+        ballLabel.textContent = "Balón: ❌";
+        showMessage("¡Un defensa te robó el balón!");
+      } else {
+        damagePlayer("¡Entrada dura! Pierdes una energía.");
+      }
     }
   }
 
@@ -234,17 +292,7 @@ function updateLevelObjects() {
     }
   }
 
-  if (player.x >= currentLevel.finishLine) {
-    if (gameState.levelIndex < 5) {
-      gameState.levelIndex += 1;
-      showMessage(`Golazo en ${levelNames[gameState.levelIndex - 1]}! Siguiente nivel...`);
-      loadLevel(gameState.levelIndex);
-    } else {
-      gameState.finished = true;
-      showMessage("¡Campeón de Murcia! Has superado los 6 niveles.", 7000);
-      audio.victory();
-    }
-  }
+  if (currentLevel.goalkeeper.dive > 0) currentLevel.goalkeeper.dive -= 1;
 }
 
 function damagePlayer(text) {
@@ -317,11 +365,15 @@ function drawGoal(g) {
 
 function drawEnemy(e) {
   const x = e.x - cameraX;
-  ctx.fillStyle = e.kind === "drone" ? "#5d4037" : "#455a64";
-  ctx.fillRect(x, e.y, e.w, e.h);
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(x + 5, e.y + 8, 7, 7);
-  ctx.fillRect(x + 20, e.y + 8, 7, 7);
+  ctx.fillStyle = e.kind === "defensa" ? "#263238" : "#37474f";
+  ctx.fillRect(x + 8, e.y, 18, 12); // cabeza
+  ctx.fillStyle = "#ffca9a";
+  ctx.fillRect(x + 10, e.y + 2, 14, 8);
+  ctx.fillStyle = e.kind === "defensa" ? "#fdd835" : "#ab47bc";
+  ctx.fillRect(x + 6, e.y + 12, 22, 16); // camiseta
+  ctx.fillStyle = "#1e88e5";
+  ctx.fillRect(x + 6, e.y + 28, 9, 12);
+  ctx.fillRect(x + 19, e.y + 28, 9, 12);
 }
 
 function drawNaranja(n) {
@@ -357,24 +409,50 @@ function drawPlayer() {
   ctx.fillRect(x + 4 + footOffset, player.y + 49, 12, 3);
   ctx.fillRect(x + 18 - footOffset, player.y + 49, 12, 3);
 
-  const ballX = x + (player.facing > 0 ? 32 : 0);
-  ctx.fillStyle = "white";
-  ctx.beginPath();
-  ctx.arc(ballX, player.y + 44, 6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "black";
-  ctx.stroke();
+  if (player.hasBall) {
+    const ballX = x + (player.facing > 0 ? 32 : 0);
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(ballX, player.y + 44, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "black";
+    ctx.stroke();
+  }
 }
 
-function drawFinishBanner() {
-  const x = currentLevel.finishLine - cameraX;
-  ctx.fillStyle = "#ffeb3b";
-  ctx.fillRect(x, 250, 10, 200);
-  ctx.fillStyle = "#d72638";
-  ctx.fillRect(x + 10, 250, 90, 55);
+function drawFinalGoal() {
+  const g = currentLevel.finalGoal;
+  const k = currentLevel.goalkeeper;
+  const gx = g.x - cameraX;
+  const kx = k.x - cameraX + (k.dive > 0 ? Math.sin((34 - k.dive) * 0.7) * 22 : 0);
+
   ctx.fillStyle = "#fff";
-  ctx.font = "bold 16px sans-serif";
-  ctx.fillText("META", x + 25, 284);
+  ctx.fillRect(gx, g.y, g.w, g.h);
+  ctx.strokeStyle = "#e53935";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(gx, g.y, g.w, g.h);
+
+  ctx.strokeStyle = "#eceff1";
+  ctx.beginPath();
+  for (let j = 1; j < 9; j += 1) {
+    ctx.moveTo(gx, g.y + j * 11);
+    ctx.lineTo(gx + g.w, g.y + j * 11);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = "#212121";
+  ctx.fillRect(kx + 6, k.y, 16, 13);
+  ctx.fillStyle = "#ffcc80";
+  ctx.fillRect(kx + 8, k.y + 3, 12, 8);
+  ctx.fillStyle = "#43a047";
+  ctx.fillRect(kx + 2, k.y + 13, 24, 26);
+  ctx.fillStyle = "#263238";
+  ctx.fillRect(kx + 3, k.y + 39, 8, 23);
+  ctx.fillRect(kx + 17, k.y + 39, 8, 23);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 14px sans-serif";
+  ctx.fillText("PORTERÍA FINAL", gx - 10, g.y - 12);
 }
 
 function drawCityDecor() {
@@ -397,7 +475,7 @@ function render() {
   for (const e of currentLevel.enemies) drawEnemy(e);
   for (const n of currentLevel.naranjas) if (!n.taken) drawNaranja(n);
 
-  drawFinishBanner();
+  drawFinalGoal();
   drawPlayer();
 
   if (gameState.finished) {
@@ -416,6 +494,14 @@ function tick() {
     applyControls();
     physics();
     updateLevelObjects();
+    if (!player.hasBall && player.ballLostFrames > 0) {
+      player.ballLostFrames -= 1;
+      if (player.ballLostFrames === 0) {
+        player.hasBall = true;
+        ballLabel.textContent = "Balón: ✅";
+        showMessage("Recuperaste el balón. ¡A chutar!");
+      }
+    }
     if (player.invulnFrames > 0) player.invulnFrames -= 1;
   }
   render();
@@ -426,6 +512,7 @@ window.addEventListener("keydown", (e) => {
   if (["ArrowLeft", "a", "A"].includes(e.key)) keys.left = true;
   if (["ArrowRight", "d", "D"].includes(e.key)) keys.right = true;
   if (["ArrowUp", " ", "w", "W"].includes(e.key)) keys.jump = true;
+  if (["k", "K", "x", "X"].includes(e.key)) keys.shoot = true;
   audio.ensureStart();
 });
 
@@ -433,6 +520,7 @@ window.addEventListener("keyup", (e) => {
   if (["ArrowLeft", "a", "A"].includes(e.key)) keys.left = false;
   if (["ArrowRight", "d", "D"].includes(e.key)) keys.right = false;
   if (["ArrowUp", " ", "w", "W"].includes(e.key)) keys.jump = false;
+  if (["k", "K", "x", "X"].includes(e.key)) keys.shoot = false;
 });
 
 function bindHoldButton(id, stateKey) {
@@ -458,6 +546,13 @@ const jumpBtn = document.getElementById("btnJump");
 ["touchstart", "mousedown"].forEach((ev) => jumpBtn.addEventListener(ev, (e) => {
   e.preventDefault();
   touchJumpQueued = true;
+  audio.ensureStart();
+}));
+
+const shootBtn = document.getElementById("btnShoot");
+["touchstart", "mousedown"].forEach((ev) => shootBtn.addEventListener(ev, (e) => {
+  e.preventDefault();
+  touchShootQueued = true;
   audio.ensureStart();
 }));
 
@@ -526,17 +621,20 @@ const audio = (() => {
   function collect() { tone(880, 0.12, "triangle", 0.15); }
   function warp() { tone(520, 0.09, "sawtooth", 0.09); tone(780, 0.14, "square", 0.08); }
   function hit() { tone(110, 0.2, "sawtooth", 0.2); }
+  function goal() {
+    [659, 784, 988].forEach((n, i) => setTimeout(() => tone(n, 0.2, "square", 0.17), i * 90));
+  }
   function victory() {
     [523, 659, 784, 1046].forEach((n, i) => setTimeout(() => tone(n, 0.3, "triangle", 0.16), i * 140));
     if (beatTimer) clearInterval(beatTimer);
   }
 
-  return { ensureStart, jump, collect, warp, hit, victory };
+  return { ensureStart, jump, collect, warp, hit, goal, victory };
 })();
 
 buildCharacterSelection();
 startGameBtn.addEventListener("click", startGame);
 
-showMessage("Primero elige personaje y luego toca “Comenzar partido”.", 5000);
+showMessage("Elige personaje, pulsa “Comenzar partido” y usa “🥅 Chutar” al llegar a portería.", 6000);
 loadLevel(0);
 tick();

@@ -65,7 +65,7 @@ canvas {
 .touch-controls {
   width: min(960px, 100%);
   display: grid;
-  grid-template-columns: 1fr 1fr 1.7fr;
+  grid-template-columns: 1fr 1fr;
   gap: 0.55rem;
 }
 
@@ -87,6 +87,10 @@ button:active {
 
 #btnJump {
   background: linear-gradient(180deg, #ef5350, #d32f2f);
+}
+
+#btnShoot {
+  background: linear-gradient(180deg, #ffa000, #ef6c00);
 }
 
 .message {
