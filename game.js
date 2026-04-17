@@ -27,14 +27,14 @@ const worldConfig = {
 };
 
 const characters = [
-  { name: "Carmen", shirt: "#d72638", shorts: "#0d47a1" },
-  { name: "Ana", shirt: "#8e24aa", shorts: "#00897b" },
-  { name: "Martín", shirt: "#1e88e5", shorts: "#f4511e" },
-  { name: "Pablo", shirt: "#fbc02d", shorts: "#283593" },
-  { name: "Mateo", shirt: "#43a047", shorts: "#6d4c41" },
-  { name: "Inés", shirt: "#ec407a", shorts: "#3949ab" },
-  { name: "Jaime", shirt: "#fb8c00", shorts: "#5e35b1" },
-  { name: "Miguel", shirt: "#00acc1", shorts: "#6d4c41" },
+  { name: "Carmen", age: 14, shirt: "#d72638", shorts: "#0d47a1", skin: "#f8d0b0", hair: "#4e342e", archetype: "teen_girl" },
+  { name: "Ana", age: 15, shirt: "#8e24aa", shorts: "#00897b", skin: "#f5c7a5", hair: "#212121", archetype: "teen_girl" },
+  { name: "Martín", age: 7, shirt: "#1e88e5", shorts: "#f4511e", skin: "#f3c79f", hair: "#5d4037", archetype: "kid_7" },
+  { name: "Pablo", age: 7, shirt: "#fbc02d", shorts: "#283593", skin: "#f1c49c", hair: "#3e2723", archetype: "kid_7" },
+  { name: "Mateo", age: 5, shirt: "#43a047", shorts: "#6d4c41", skin: "#efbe95", hair: "#6d4c41", archetype: "kid_5" },
+  { name: "Inés", age: 5, shirt: "#ec407a", shorts: "#3949ab", skin: "#f6c6a2", hair: "#6a1b9a", archetype: "kid_5" },
+  { name: "Jaime", age: 3, shirt: "#fb8c00", shorts: "#5e35b1", skin: "#f0b98f", hair: "#8d6e63", archetype: "kid_3" },
+  { name: "Miguel", age: 1, shirt: "#00acc1", shorts: "#6d4c41", skin: "#f1bf97", hair: "#4e342e", archetype: "baby_1" },
 ];
 
 let keys = { left: false, right: false, jump: false, shoot: false };
@@ -389,25 +389,35 @@ function drawNaranja(n) {
 function drawPlayer() {
   const blink = player.invulnFrames > 0 && Math.floor(player.invulnFrames / 8) % 2 === 0;
   if (blink) return;
-  const selected = gameState.selectedCharacter || { shirt: "#d72638", shorts: "#0d47a1" };
+  const selected = gameState.selectedCharacter || characters[0];
 
   const x = player.x - cameraX;
-  ctx.fillStyle = "#f8d39e";
-  ctx.fillRect(x + 10, player.y + 4, 14, 14);
+  const sprite = getCharacterSprite(selected);
+  const headTop = player.y + 50 - (sprite.headH + sprite.bodyH + sprite.legH);
+  const headX = x + Math.round((player.w - sprite.headW) / 2);
+  const bodyX = x + Math.round((player.w - sprite.bodyW) / 2);
+  const legX = x + Math.round((player.w - sprite.legW * 2 - sprite.legGap) / 2);
+
+  ctx.fillStyle = selected.skin;
+  ctx.fillRect(headX, headTop, sprite.headW, sprite.headH);
+  drawHair(headX, headTop, sprite, selected);
 
   ctx.fillStyle = selected.shirt;
-  ctx.fillRect(x + 6, player.y + 18, 22, 20);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(x + 6, player.y + 28, 22, 4);
+  ctx.fillRect(bodyX, headTop + sprite.headH, sprite.bodyW, sprite.bodyH);
+  if (sprite.hasStripe) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(bodyX, headTop + sprite.headH + Math.floor(sprite.bodyH * 0.45), sprite.bodyW, 3);
+  }
 
   ctx.fillStyle = selected.shorts;
-  ctx.fillRect(x + 6, player.y + 38, 9, 12);
-  ctx.fillRect(x + 19, player.y + 38, 9, 12);
+  const legTop = headTop + sprite.headH + sprite.bodyH;
+  ctx.fillRect(legX, legTop, sprite.legW, sprite.legH);
+  ctx.fillRect(legX + sprite.legW + sprite.legGap, legTop, sprite.legW, sprite.legH);
 
   ctx.fillStyle = "#111";
   const footOffset = player.onGround ? Math.sin(Date.now() * 0.02 + player.x * 0.09) * 2.6 : 0;
-  ctx.fillRect(x + 4 + footOffset, player.y + 49, 12, 3);
-  ctx.fillRect(x + 18 - footOffset, player.y + 49, 12, 3);
+  ctx.fillRect(legX - 2 + footOffset, player.y + 49, 11, 3);
+  ctx.fillRect(legX + sprite.legW + sprite.legGap + 1 - footOffset, player.y + 49, 11, 3);
 
   if (player.hasBall) {
     const ballX = x + (player.facing > 0 ? 32 : 0);
@@ -417,6 +427,29 @@ function drawPlayer() {
     ctx.fill();
     ctx.strokeStyle = "black";
     ctx.stroke();
+  }
+}
+
+function getCharacterSprite(character) {
+  const sprites = {
+    teen_girl: { headW: 13, headH: 14, bodyW: 23, bodyH: 19, legW: 8, legH: 17, legGap: 4, hasStripe: true, ponytail: true, babyCurl: false },
+    kid_7: { headW: 14, headH: 14, bodyW: 22, bodyH: 18, legW: 8, legH: 16, legGap: 3, hasStripe: true, ponytail: false, babyCurl: false },
+    kid_5: { headW: 16, headH: 15, bodyW: 20, bodyH: 17, legW: 7, legH: 15, legGap: 3, hasStripe: true, ponytail: false, babyCurl: false },
+    kid_3: { headW: 18, headH: 16, bodyW: 19, bodyH: 16, legW: 7, legH: 14, legGap: 2, hasStripe: false, ponytail: false, babyCurl: false },
+    baby_1: { headW: 20, headH: 17, bodyW: 18, bodyH: 15, legW: 6, legH: 13, legGap: 2, hasStripe: false, ponytail: false, babyCurl: true },
+  };
+  return sprites[character.archetype] || sprites.kid_7;
+}
+
+function drawHair(headX, headTop, sprite, character) {
+  ctx.fillStyle = character.hair;
+  ctx.fillRect(headX - 1, headTop - 2, sprite.headW + 2, 5);
+  if (sprite.ponytail) {
+    ctx.fillRect(headX + sprite.headW - 1, headTop + 4, 4, 7);
+  }
+  if (sprite.babyCurl) {
+    ctx.fillStyle = "#3e2723";
+    ctx.fillRect(headX + Math.floor(sprite.headW / 2), headTop - 4, 2, 3);
   }
 }
 
