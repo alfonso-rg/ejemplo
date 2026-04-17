@@ -45,6 +45,7 @@ const gameState = {
   lives: 3,
   finished: false,
   selectedCharacter: null,
+  started: false,
 };
 
 function makeLevel(index) {
@@ -146,6 +147,7 @@ function buildCharacterSelection() {
 
 function startGame() {
   if (!gameState.selectedCharacter) return;
+  gameState.started = true;
   startScreen.classList.add("hidden");
   levelLabel.textContent = `Nivel ${gameState.levelIndex + 1}/6 · ${levelNames[gameState.levelIndex]} · ${gameState.selectedCharacter.name}`;
   showMessage(`¡${gameState.selectedCharacter.name} salta al césped!`, 2600);
@@ -410,7 +412,7 @@ function render() {
 }
 
 function tick() {
-  if (gameState.selectedCharacter && !gameState.finished) {
+  if (gameState.started && !gameState.finished) {
     applyControls();
     physics();
     updateLevelObjects();
